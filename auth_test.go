@@ -291,7 +291,7 @@ func TestAuthFastCachingSHA256PasswordFullSecure(t *testing.T) {
 
 	// Hack to make the caching_sha2_password plugin believe that the connection
 	// is secure
-	mc.cfg.tls = &tls.Config{InsecureSkipVerify: true}
+	mc.cfg.TLS = &tls.Config{InsecureSkipVerify: true}
 
 	// check written auth response
 	authRespStart := 4 + 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1
@@ -663,7 +663,7 @@ func TestAuthFastSHA256PasswordSecure(t *testing.T) {
 
 	// hack to make the caching_sha2_password plugin believe that the connection
 	// is secure
-	mc.cfg.tls = &tls.Config{InsecureSkipVerify: true}
+	mc.cfg.TLS = &tls.Config{InsecureSkipVerify: true}
 
 	authData := []byte{6, 81, 96, 114, 14, 42, 50, 30, 76, 47, 1, 95, 126, 81,
 		62, 94, 83, 80, 52, 85}
@@ -676,7 +676,7 @@ func TestAuthFastSHA256PasswordSecure(t *testing.T) {
 	}
 
 	// unset TLS config to prevent the actual establishment of a TLS wrapper
-	mc.cfg.tls = nil
+	mc.cfg.TLS = nil
 
 	err = mc.writeHandshakeResponsePacket(authResp, plugin)
 	if err != nil {
@@ -734,9 +734,9 @@ func TestAuthSwitchCachingSHA256PasswordCached(t *testing.T) {
 
 	expectedReply := []byte{
 		// 1. Packet: Hash
-		32, 0, 0, 3, 129, 93, 132, 95, 114, 48, 79, 215, 128, 62, 193, 118, 128,
-		54, 75, 208, 159, 252, 227, 215, 129, 15, 242, 97, 19, 159, 31, 20, 58,
-		153, 9, 130,
+		32, 0, 0, 3, 219, 72, 64, 97, 56, 197, 167, 203, 64, 236, 168, 80, 223,
+		56, 103, 217, 196, 176, 124, 60, 253, 41, 195, 10, 205, 190, 177, 206, 63,
+		118, 211, 69,
 	}
 	if !bytes.Equal(conn.written, expectedReply) {
 		t.Errorf("got unexpected data: %v", conn.written)
@@ -803,9 +803,9 @@ func TestAuthSwitchCachingSHA256PasswordFullRSA(t *testing.T) {
 
 	expectedReplyPrefix := []byte{
 		// 1. Packet: Hash
-		32, 0, 0, 3, 129, 93, 132, 95, 114, 48, 79, 215, 128, 62, 193, 118, 128,
-		54, 75, 208, 159, 252, 227, 215, 129, 15, 242, 97, 19, 159, 31, 20, 58,
-		153, 9, 130,
+		32, 0, 0, 3, 219, 72, 64, 97, 56, 197, 167, 203, 64, 236, 168, 80, 223,
+		56, 103, 217, 196, 176, 124, 60, 253, 41, 195, 10, 205, 190, 177, 206, 63,
+		118, 211, 69,
 
 		// 2. Packet: Pub Key Request
 		1, 0, 0, 5, 2,
@@ -848,9 +848,9 @@ func TestAuthSwitchCachingSHA256PasswordFullRSAWithKey(t *testing.T) {
 
 	expectedReplyPrefix := []byte{
 		// 1. Packet: Hash
-		32, 0, 0, 3, 129, 93, 132, 95, 114, 48, 79, 215, 128, 62, 193, 118, 128,
-		54, 75, 208, 159, 252, 227, 215, 129, 15, 242, 97, 19, 159, 31, 20, 58,
-		153, 9, 130,
+		32, 0, 0, 3, 219, 72, 64, 97, 56, 197, 167, 203, 64, 236, 168, 80, 223,
+		56, 103, 217, 196, 176, 124, 60, 253, 41, 195, 10, 205, 190, 177, 206, 63,
+		118, 211, 69,
 
 		// 2. Packet: Encrypted Password
 		0, 1, 0, 5, // [changing bytes]
@@ -866,7 +866,7 @@ func TestAuthSwitchCachingSHA256PasswordFullSecure(t *testing.T) {
 
 	// Hack to make the caching_sha2_password plugin believe that the connection
 	// is secure
-	mc.cfg.tls = &tls.Config{InsecureSkipVerify: true}
+	mc.cfg.TLS = &tls.Config{InsecureSkipVerify: true}
 
 	// auth switch request
 	conn.data = []byte{44, 0, 0, 2, 254, 99, 97, 99, 104, 105, 110, 103, 95,
@@ -891,9 +891,9 @@ func TestAuthSwitchCachingSHA256PasswordFullSecure(t *testing.T) {
 
 	expectedReply := []byte{
 		// 1. Packet: Hash
-		32, 0, 0, 3, 129, 93, 132, 95, 114, 48, 79, 215, 128, 62, 193, 118, 128,
-		54, 75, 208, 159, 252, 227, 215, 129, 15, 242, 97, 19, 159, 31, 20, 58,
-		153, 9, 130,
+		32, 0, 0, 3, 219, 72, 64, 97, 56, 197, 167, 203, 64, 236, 168, 80, 223,
+		56, 103, 217, 196, 176, 124, 60, 253, 41, 195, 10, 205, 190, 177, 206, 63,
+		118, 211, 69,
 
 		// 2. Packet: Cleartext password
 		7, 0, 0, 5, 115, 101, 99, 114, 101, 116, 0,
@@ -1299,7 +1299,7 @@ func TestAuthSwitchSHA256PasswordSecure(t *testing.T) {
 
 	// Hack to make the caching_sha2_password plugin believe that the connection
 	// is secure
-	mc.cfg.tls = &tls.Config{InsecureSkipVerify: true}
+	mc.cfg.TLS = &tls.Config{InsecureSkipVerify: true}
 
 	// auth switch request
 	conn.data = []byte{38, 0, 0, 2, 254, 115, 104, 97, 50, 53, 54, 95, 112, 97,
@@ -1326,5 +1326,56 @@ func TestAuthSwitchSHA256PasswordSecure(t *testing.T) {
 	}
 	if !bytes.Equal(conn.written, expectedReplyPrefix) {
 		t.Errorf("got unexpected data: %v", conn.written)
+	}
+}
+
+// Derived from https://github.com/MariaDB/server/blob/6b2287fff23fbdc362499501c562f01d0d2db52e/plugin/auth_ed25519/ed25519-t.c
+func TestEd25519Auth(t *testing.T) {
+	conn, mc := newRWMockConn(1)
+	mc.cfg.User = "root"
+	mc.cfg.Passwd = "foobar"
+
+	authData := []byte("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+	plugin := "client_ed25519"
+
+	// Send Client Authentication Packet
+	authResp, err := mc.auth(authData, plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = mc.writeHandshakeResponsePacket(authResp, plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// check written auth response
+	authRespStart := 4 + 4 + 4 + 1 + 23 + len(mc.cfg.User) + 1
+	authRespEnd := authRespStart + 1 + len(authResp)
+	writtenAuthRespLen := conn.written[authRespStart]
+	writtenAuthResp := conn.written[authRespStart+1 : authRespEnd]
+	expectedAuthResp := []byte{
+		232, 61, 201, 63, 67, 63, 51, 53, 86, 73, 238, 35, 170, 117, 146,
+		214, 26, 17, 35, 9, 8, 132, 245, 141, 48, 99, 66, 58, 36, 228, 48,
+		84, 115, 254, 187, 168, 88, 162, 249, 57, 35, 85, 79, 238, 167, 106,
+		68, 117, 56, 135, 171, 47, 20, 14, 133, 79, 15, 229, 124, 160, 176,
+		100, 138, 14,
+	}
+	if writtenAuthRespLen != 64 {
+		t.Fatalf("expected 64 bytes from client, got %d", writtenAuthRespLen)
+	}
+	if !bytes.Equal(writtenAuthResp, expectedAuthResp) {
+		t.Fatalf("auth response did not match expected value:\n%v\n%v", writtenAuthResp, expectedAuthResp)
+	}
+	conn.written = nil
+
+	// auth response
+	conn.data = []byte{
+		7, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, // OK
+	}
+	conn.maxReads = 1
+
+	// Handle response to auth packet
+	if err := mc.handleAuthResult(authData, plugin); err != nil {
+		t.Errorf("got error: %v", err)
 	}
 }

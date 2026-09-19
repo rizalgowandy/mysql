@@ -9,6 +9,7 @@
 package mysql
 
 import (
+	"database/sql"
 	"database/sql/driver"
 	"io"
 	"math"
@@ -59,7 +60,20 @@ func (rows *mysqlRows) Columns() []string {
 	return columns
 }
 
+func (rows *mysqlRows) tinyInt1IsBool(i int) bool {
+	if rows.mc == nil || !rows.mc.cfg.tinyInt1IsBool {
+		return false
+	}
+	column := rows.rs.columns[i]
+	return column.fieldType == fieldTypeTiny &&
+		column.length == 1 &&
+		column.flags&(flagUnsigned|flagZeroFill) == 0
+}
+
 func (rows *mysqlRows) ColumnTypeDatabaseTypeName(i int) string {
+	if rows.tinyInt1IsBool(i) {
+		return "BOOLEAN"
+	}
 	return rows.rs.columns[i].typeDatabaseName()
 }
 
@@ -77,10 +91,14 @@ func (rows *mysqlRows) ColumnTypePrecisionScale(i int) (int64, int64, bool) {
 
 	switch column.fieldType {
 	case fieldTypeDecimal, fieldTypeNewDecimal:
-		if decimals > 0 {
-			return int64(column.length) - 2, decimals, true
+		precision := int64(column.length)
+		if column.flags&flagUnsigned == 0 {
+			precision-- // signed decimals include space for the sign
 		}
-		return int64(column.length) - 1, decimals, true
+		if decimals > 0 {
+			precision-- // decimals with a scale include a decimal point
+		}
+		return precision, decimals, true
 	case fieldTypeTimestamp, fieldTypeDateTime, fieldTypeTime:
 		return decimals, decimals, true
 	case fieldTypeFloat, fieldTypeDouble:
@@ -94,7 +112,27 @@ func (rows *mysqlRows) ColumnTypePrecisionScale(i int) (int64, int64, bool) {
 }
 
 func (rows *mysqlRows) ColumnTypeScanType(i int) reflect.Type {
+	if rows.tinyInt1IsBool(i) {
+		if rows.rs.columns[i].flags&flagNotNULL != 0 {
+			return reflect.TypeFor[bool]()
+		}
+		return reflect.TypeFor[sql.NullBool]()
+	}
 	return rows.rs.columns[i].scanType()
+}
+
+func (rows *mysqlRows) convertTinyInt1ToBool(dest []driver.Value) {
+	if rows.mc == nil || !rows.mc.cfg.tinyInt1IsBool {
+		return
+	}
+	for i, v := range dest {
+		if !rows.tinyInt1IsBool(i) || v == nil {
+			continue
+		}
+		if n, ok := v.(int64); ok {
+			dest[i] = n != 0
+		}
+	}
 }
 
 func (rows *mysqlRows) Close() (err error) {
@@ -111,19 +149,13 @@ func (rows *mysqlRows) Close() (err error) {
 		return err
 	}
 
-	// flip the buffer for this connection if we need to drain it.
-	// note that for a successful query (i.e. one where rows.next()
-	// has been called until it returns false), `rows.mc` will be nil
-	// by the time the user calls `(*Rows).Close`, so we won't reach this
-	// see: https://github.com/golang/go/commit/651ddbdb5056ded455f47f9c494c67b389622a47
-	mc.buf.flip()
-
 	// Remove unread packets from stream
 	if !rows.rs.done {
-		err = mc.readUntilEOF()
+		err = mc.skipRows()
 	}
 	if err == nil {
-		if err = mc.discardResults(); err != nil {
+		handleOk := mc.clearResult()
+		if err = handleOk.discardResults(); err != nil {
 			return err
 		}
 	}
@@ -149,7 +181,7 @@ func (rows *mysqlRows) nextResultSet() (int, error) {
 
 	// Remove unread packets from stream
 	if !rows.rs.done {
-		if err := rows.mc.readUntilEOF(); err != nil {
+		if err := rows.mc.skipRows(); err != nil {
 			return 0, err
 		}
 		rows.rs.done = true
@@ -160,7 +192,15 @@ func (rows *mysqlRows) nextResultSet() (int, error) {
 		return 0, io.EOF
 	}
 	rows.rs = resultSet{}
-	return rows.mc.readResultSetHeaderPacket()
+	// rows.mc.affectedRows and rows.mc.insertIds accumulate on each call to
+	// nextResultSet.
+	resLen, _, err := rows.mc.resultUnchanged().readResultSetHeaderPacket()
+	if err != nil {
+		// Clean up about multi-results flag
+		rows.rs.done = true
+		rows.mc.status = rows.mc.status & (^statusMoreResultsExists)
+	}
+	return resLen, err
 }
 
 func (rows *mysqlRows) nextNotEmptyResultSet() (int, error) {
@@ -184,7 +224,7 @@ func (rows *binaryRows) NextResultSet() error {
 		return err
 	}
 
-	rows.rs.columns, err = rows.mc.readColumns(resLen)
+	rows.rs.columns, err = rows.mc.readColumns(resLen, nil)
 	return err
 }
 
@@ -195,7 +235,11 @@ func (rows *binaryRows) Next(dest []driver.Value) error {
 		}
 
 		// Fetch next row from stream
-		return rows.readRow(dest)
+		if err := rows.readRow(dest); err != nil {
+			return err
+		}
+		rows.convertTinyInt1ToBool(dest)
+		return nil
 	}
 	return io.EOF
 }
@@ -206,7 +250,7 @@ func (rows *textRows) NextResultSet() (err error) {
 		return err
 	}
 
-	rows.rs.columns, err = rows.mc.readColumns(resLen)
+	rows.rs.columns, err = rows.mc.readColumns(resLen, nil)
 	return err
 }
 
@@ -217,7 +261,11 @@ func (rows *textRows) Next(dest []driver.Value) error {
 		}
 
 		// Fetch next row from stream
-		return rows.readRow(dest)
+		if err := rows.readRow(dest); err != nil {
+			return err
+		}
+		rows.convertTinyInt1ToBool(dest)
+		return nil
 	}
 	return io.EOF
 }
